@@ -129,7 +129,47 @@ impl Gate {
                     * Gate::CX { c: t, t: c }.matrix()
                     * Gate::CX { c: c, t: t }.matrix()
             }
-            Gate::CCX { c0, c1, t } => unimplemented!(),
+            Gate::CCX { c0, c1, t } => {
+                // TODO: Currently won't work for more than 3 qubits, needs rework
+                Gate::CX { c: c1, t: c0 }
+                    .matrix()
+                    .kronecker(&Gate::I { t: t }.matrix())
+                    * Gate::T { t: c0 }
+                        .matrix()
+                        .kronecker(&Gate::T { t: c1 }.matrix().adjoint())
+                        .kronecker(&Gate::I { t: t }.matrix())
+                    * Gate::CX { c: c1, t: c0 }
+                        .matrix()
+                        .kronecker(&Gate::H { t: t }.matrix())
+                    * Gate::I { t: c0 }
+                        .matrix()
+                        .kronecker(&Gate::T { t: c1 }.matrix())
+                        .kronecker(&Gate::T { t: t }.matrix())
+                    * Gate::CX { c: t, t: c0 }.matrix()
+                    * Gate::I { t: c0 }
+                        .matrix()
+                        .kronecker(&Gate::I { t: c1 }.matrix())
+                        .kronecker(&Gate::T { t: t }.matrix().adjoint())
+                    * Gate::I { t: c0 }
+                        .matrix()
+                        .kronecker(&Gate::CX { c: t, t: c1 }.matrix())
+                    * Gate::I { t: c0 }
+                        .matrix()
+                        .kronecker(&Gate::I { t: c1 }.matrix())
+                        .kronecker(&Gate::T { t: t }.matrix())
+                    * Gate::CX { c: t, t: c0 }.matrix()
+                    * Gate::I { t: c0 }
+                        .matrix()
+                        .kronecker(&Gate::I { t: c1 }.matrix())
+                        .kronecker(&Gate::T { t: t }.matrix().adjoint())
+                    * Gate::I { t: c0 }
+                        .matrix()
+                        .kronecker(&Gate::CX { c: t, t: c1 }.matrix())
+                    * Gate::I { t: c0 }
+                        .matrix()
+                        .kronecker(&Gate::I { t: c1 }.matrix())
+                        .kronecker(&Gate::H { t: t }.matrix())
+            }
         }
     }
 }

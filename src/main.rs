@@ -186,7 +186,7 @@ fn main() {
     let gate_cy = Gate::CY { c: 1, t: 2 };
     let gate_cz = Gate::CZ { c: 1, t: 2 };
     let gate_swap = Gate::SWAP { c: 1, t: 2 };
-    let gate_ccx = Gate::CCX { c0: 1, c1: 2, t: 3 };
+    let gate_ccx = Gate::CCX { c0: 3, c1: 2, t: 1 };
 
     print!("Identity Gate\n{}", gate_i.matrix());
     print!("Pauli-X Gate\n{}", gate_x.matrix());

@@ -1,5 +1,8 @@
 extern crate nalgebra as na;
 
+use rand::distributions::WeightedIndex;
+use rand::prelude::*;
+
 use num::abs;
 use num_complex::Complex64;
 
@@ -170,7 +173,7 @@ impl Gate {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct QuantumCircuit {
     matrix: na::DMatrix<Complex64>,
     num_qubits: usize,
@@ -217,6 +220,32 @@ impl QuantumCircuit {
 
         self.matrix = matrix * self.matrix.clone();
     }
+
+    pub fn measure(&mut self) -> usize {
+        let mut rng = thread_rng();
+
+        let mut items = Vec::<(usize, f64)>::new();
+
+        for (i, num) in self.matrix.iter().enumerate() {
+            items.push((i, num.norm_sqr()))
+        }
+        let dist = WeightedIndex::new(items.iter().map(|item| item.1)).unwrap();
+        let new_state = items[dist.sample(&mut rng)].0;
+
+        self.matrix = na::DMatrix::<Complex64>::from_fn_generic(
+            na::Dynamic::new(self.num_states),
+            na::Dynamic::new(1),
+            |row, _| {
+                if row != new_state {
+                    Complex64::new(0., 0.)
+                } else {
+                    Complex64::new(1., 0.)
+                }
+            },
+        );
+
+        new_state
+    }
 }
 
 fn main() {
@@ -248,4 +277,12 @@ fn main() {
 
     circuit.apply_gate(Gate::CX(0, 2));
     print!("Estado após CNOT\n{}", circuit.state());
+
+    let mut histogram = [0, 0, 0, 0, 0, 0, 0, 0];
+
+    for _ in 0..8192 {
+        histogram[circuit.clone().measure()] += 1;
+    }
+
+    print!("Histograma de 8192 medições\n{:?}", histogram);
 }

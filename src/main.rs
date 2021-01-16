@@ -4,21 +4,18 @@ use num::abs;
 use num_complex::Complex64;
 
 enum Gate {
-    I { t: usize },
-    X { t: usize },
-    Y { t: usize },
-    Z { t: usize },
-    H { t: usize },
-    S { t: usize },
-    T { t: usize },
-    CX { c: usize, t: usize },
-    // CY { c: usize, t: usize },
-    // CZ { c: usize, t: usize },
-    // SWAP { c: usize, t: usize },
-    // CCX { c0: usize, c1: usize, t: usize },
+    I(usize),
+    X(usize),
+    Y(usize),
+    Z(usize),
+    H(usize),
+    S(usize),
+    T(usize),
+    CX(usize, usize),
+    SWAP(usize, usize),
 }
 
-fn controlled_gate(c: usize, t: usize, u: &na::DMatrix<Complex64>) -> na::DMatrix<Complex64> {
+fn controlled_x_gate(c: usize, t: usize) -> na::DMatrix<Complex64> {
     let control: usize = c - c.min(t);
     let target: usize = t - t.min(c);
 
@@ -72,12 +69,10 @@ fn controlled_gate(c: usize, t: usize, u: &na::DMatrix<Complex64>) -> na::DMatri
 }
 
 impl Gate {
-    fn matrix(&self) -> na::DMatrix<Complex64> {
+    pub fn matrix(&self) -> na::DMatrix<Complex64> {
         match *self {
-            Gate::I { t: _ } => {
-                na::DMatrix::identity_generic(na::Dynamic::new(2), na::Dynamic::new(2))
-            }
-            Gate::X { t: _ } => na::DMatrix::from_vec_generic(
+            Gate::I(t) => na::DMatrix::identity_generic(na::Dynamic::new(2), na::Dynamic::new(2)),
+            Gate::X(t) => na::DMatrix::from_vec_generic(
                 na::Dynamic::new(2),
                 na::Dynamic::new(2),
                 vec![
@@ -87,7 +82,7 @@ impl Gate {
                     Complex64::new(0., 0.),
                 ],
             ),
-            Gate::Y { t: _ } => na::DMatrix::from_vec_generic(
+            Gate::Y(t) => na::DMatrix::from_vec_generic(
                 na::Dynamic::new(2),
                 na::Dynamic::new(2),
                 vec![
@@ -97,7 +92,7 @@ impl Gate {
                     Complex64::new(0., 0.),
                 ],
             ),
-            Gate::Z { t: _ } => na::DMatrix::from_vec_generic(
+            Gate::Z(t) => na::DMatrix::from_vec_generic(
                 na::Dynamic::new(2),
                 na::Dynamic::new(2),
                 vec![
@@ -107,7 +102,7 @@ impl Gate {
                     Complex64::new(-1., 0.),
                 ],
             ),
-            Gate::H { t: _ } => {
+            Gate::H(t) => {
                 na::DMatrix::from_vec_generic(
                     na::Dynamic::new(2),
                     na::Dynamic::new(2),
@@ -119,7 +114,7 @@ impl Gate {
                     ],
                 ) / Complex64::new(2., 0.).sqrt()
             }
-            Gate::S { t: _ } => na::DMatrix::from_vec_generic(
+            Gate::S(t) => na::DMatrix::from_vec_generic(
                 na::Dynamic::new(2),
                 na::Dynamic::new(2),
                 vec![
@@ -129,7 +124,7 @@ impl Gate {
                     Complex64::new(0., 1.),
                 ],
             ),
-            Gate::T { t: _ } => na::DMatrix::from_vec_generic(
+            Gate::T(t) => na::DMatrix::from_vec_generic(
                 na::Dynamic::new(2),
                 na::Dynamic::new(2),
                 vec![
@@ -139,15 +134,88 @@ impl Gate {
                     Complex64::from_polar(1., na::RealField::frac_pi_4()),
                 ],
             ),
-            Gate::CX { c, t } => controlled_gate(c, t, &Gate::X { t }.matrix()),
-            // Gate::CY { c, t } => controlled_gate(c, t, &Gate::Y { t }.matrix()),
-            // Gate::CZ { c, t } => controlled_gate(c, t, &Gate::Z { t }.matrix()),
-            // Gate::SWAP { c, t } => {
-            //     Gate::CX { c: c, t: t }.matrix()
-            //         * Gate::CX { c: t, t: c }.matrix()
-            //         * Gate::CX { c: c, t: t }.matrix()
-            // }
+            Gate::CX(c, t) => controlled_x_gate(c, t),
+            Gate::SWAP(c, t) => {
+                Gate::CX(c, t).matrix() * Gate::CX(t, c).matrix() * Gate::CX(c, t).matrix()
+            }
         }
+    }
+
+    pub fn num_qubits(&self) -> usize {
+        match *self {
+            Gate::I(_) => 1,
+            Gate::X(_) => 1,
+            Gate::Y(_) => 1,
+            Gate::Z(_) => 1,
+            Gate::H(_) => 1,
+            Gate::S(_) => 1,
+            Gate::T(_) => 1,
+            Gate::CX(c, t) => (abs(c as i64 - t as i64) + 1) as usize,
+            Gate::SWAP(c, t) => (abs(c as i64 - t as i64) + 1) as usize,
+        }
+    }
+
+    pub fn position(&self) -> usize {
+        match *self {
+            Gate::I(t) => t,
+            Gate::X(t) => t,
+            Gate::Y(t) => t,
+            Gate::Z(t) => t,
+            Gate::H(t) => t,
+            Gate::S(t) => t,
+            Gate::T(t) => t,
+            Gate::CX(c, t) => c.min(t),
+            Gate::SWAP(c, t) => c.min(t),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct QuantumCircuit {
+    matrix: na::DMatrix<Complex64>,
+    num_qubits: usize,
+    num_states: usize,
+}
+
+impl QuantumCircuit {
+    pub fn new(num_qubits: usize, initial_state: usize) -> Self {
+        Self {
+            matrix: na::DMatrix::<Complex64>::from_fn_generic(
+                na::Dynamic::new(1 << num_qubits),
+                na::Dynamic::new(1),
+                |row, _| {
+                    if row != initial_state {
+                        Complex64::new(0., 0.)
+                    } else {
+                        Complex64::new(1., 0.)
+                    }
+                },
+            ),
+            num_qubits: num_qubits,
+            num_states: 1 << num_qubits,
+        }
+    }
+
+    pub fn state(&self) -> na::DMatrix<Complex64> {
+        self.matrix.clone()
+    }
+
+    pub fn apply_gate(&mut self, gate: Gate) {
+        let identity = Gate::I(0);
+
+        let mut matrix = na::DMatrix::identity_generic(na::Dynamic::new(1), na::Dynamic::new(1));
+
+        for _ in 0..gate.position() {
+            matrix = matrix.kronecker(&identity.matrix());
+        }
+
+        matrix = matrix.kronecker(&gate.matrix());
+
+        for _ in (gate.position() + gate.num_qubits())..self.num_qubits {
+            matrix = matrix.kronecker(&identity.matrix());
+        }
+
+        self.matrix = matrix * self.matrix.clone();
     }
 }
 
@@ -159,10 +227,8 @@ fn main() {
     // let gate_h = Gate::H { t: 1 };
     // let gate_s = Gate::S { t: 1 };
     // let gate_t = Gate::T { t: 1 };
-    let gate_cx = Gate::CX { c: 2, t: 0 };
-    // let gate_cy = Gate::CY { c: 1, t: 2 };
-    // let gate_cz = Gate::CZ { c: 1, t: 2 };
-    // let gate_swap = Gate::SWAP { c: 1, t: 2 };
+    // let gate_cx = Gate::CX { c: 0, t: 1 };
+    // let gate_swap = Gate::SWAP { c: 0, t: 1 };
 
     // print!("Identity Gate\n{}", gate_i.matrix());
     // print!("Pauli-X Gate\n{}", gate_x.matrix());
@@ -171,8 +237,15 @@ fn main() {
     // print!("Hadamard Gate\n{}", gate_h.matrix());
     // print!("Phase Gate\n{}", gate_s.matrix());
     // print!("π/8 Gate\n{}", gate_t.matrix());
-    print!("Controlled X Gate\n{}", gate_cx.matrix());
-    // print!("Controlled Y Gate\n{}", gate_cy.matrix());
-    // print!("Controlled Z Gate\n{}", gate_cz.matrix());
+    // print!("Controlled X Gate\n{}", gate_cx.matrix());
     // print!("Swap Gate\n{}", gate_swap.matrix());
+
+    let mut circuit = QuantumCircuit::new(3, 0);
+    print!("Estado Inicial\n{}", circuit.state());
+
+    circuit.apply_gate(Gate::H(0));
+    print!("Estado após Hadamard\n{}", circuit.state());
+
+    circuit.apply_gate(Gate::CX(0, 2));
+    print!("Estado após CNOT\n{}", circuit.state());
 }

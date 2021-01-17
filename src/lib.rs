@@ -6,6 +6,8 @@ use rand::prelude::*;
 use num::abs;
 use num_complex::Complex64;
 
+use std::collections::HashSet;
+
 pub enum Gate {
     I(usize),
     X(usize),
@@ -187,9 +189,70 @@ impl QuantumCircuit {
                         Complex64::new(1., 0.)
                     }
                 },
-            ),
+            )
+            .normalize(),
             num_qubits: num_qubits,
             num_states: 1 << num_qubits,
+        }
+    }
+
+    pub fn from_states(initial_states: Vec<usize>) -> Self {
+        let num_qubits: usize;
+
+        // Get qubits needed for max state
+        if let Some(max) = initial_states.iter().max() {
+            num_qubits = (*max as f64).log2() as usize + 1;
+        } else {
+            panic!("Vector is empty!");
+        }
+
+        // Check if vector has no repeated elements
+        assert!({
+            let mut uniq = HashSet::new();
+            initial_states.iter().all(move |x| uniq.insert(x))
+        });
+
+        let num_states = 1 << num_qubits;
+
+        Self {
+            matrix: na::DMatrix::<Complex64>::from_fn_generic(
+                na::Dynamic::new(num_states),
+                na::Dynamic::new(1),
+                |row, _| {
+                    if initial_states.iter().any(|&i| i == row) {
+                        Complex64::new(1., 0.)
+                    } else {
+                        Complex64::new(0., 0.)
+                    }
+                },
+            )
+            .normalize(),
+            num_qubits: num_qubits,
+            num_states: num_states,
+        }
+    }
+
+    pub fn from_state_vector(state_vector: Vec<Complex64>) -> Self {
+        let len = state_vector.len();
+
+        // Check if not empty
+        assert!(len != 0);
+
+        // Check if power of 2
+        assert!((len != 0) && ((len & (len - 1)) == 0));
+
+        let num_qubits = (len as f64).log2() as usize;
+        let num_states = 1 << num_qubits;
+
+        Self {
+            matrix: na::DMatrix::from_vec_generic(
+                na::Dynamic::new(num_states),
+                na::Dynamic::new(1),
+                state_vector,
+            )
+            .normalize(),
+            num_qubits: num_qubits,
+            num_states: num_states,
         }
     }
 
@@ -213,6 +276,8 @@ impl QuantumCircuit {
         }
 
         self.matrix = matrix * self.matrix.clone();
+
+        self.normalize();
     }
 
     pub fn measure(&mut self) -> usize {
@@ -238,6 +303,12 @@ impl QuantumCircuit {
             },
         );
 
+        self.normalize();
+
         new_state
+    }
+
+    fn normalize(&mut self) {
+        self.matrix = self.matrix.normalize();
     }
 }

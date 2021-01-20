@@ -196,12 +196,11 @@ impl QuantumCircuit {
         }
     }
 
-    pub fn from_states(initial_states: Vec<usize>) -> Self {
-        let num_qubits: usize;
-
+    pub fn from_states(num_qubits: usize, initial_states: Vec<usize>) -> Self {
+        assert!((num_qubits != 0) && ((num_qubits & (num_qubits - 1)) == 0));
         // Get qubits needed for max state
         if let Some(max) = initial_states.iter().max() {
-            num_qubits = (*max as f64).log2() as usize + 1;
+            assert!((*max as f64).log2() as usize + 1 <= num_qubits);
         } else {
             panic!("Vector is empty!");
         }
